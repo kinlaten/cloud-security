@@ -154,3 +154,52 @@ Depend on level of security, may essential to or not to log detail of secrets
 ## 10. Use bench tools
 
 - Kube-bench
+- kubescape
+
+# CLI
+
+```sh
+# Storage for KUBECONFIG files
+mkdir ~/.kube
+
+# Create KUBECONFIG file e.g. admin for namespace vpn
+# With cluster-admin privilege
+kubectl apply -f vpn-amdin.yaml
+
+TOKEN=$(kubectl -n vpn create token vpn-admin)
+CLUSTER_NAME=$(kubectl config view --minify -o jsonpath='{.clusters[0].name}')
+SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+CA_DATA=$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+
+cat <<EOF > ~/.kube/vpn-admin-kubeconfig.yaml
+apiVersion: v1
+kind: Config
+clusters:
+- name: $CLUSTER_NAME
+  cluster:
+    server: $SERVER
+    certificate-authority-data: $CA_DATA
+
+contexts:
+- name: sa-context
+  context:
+    cluster: $CLUSTER_NAME
+    user: sa-user
+    namespace: vpn
+
+current-context: sa-context
+
+users:
+- name: vpn-admin
+  user:
+    token: $TOKEN
+EOF
+
+# Test it
+kubectl --kubeconfig=~/.kube/vpn-admin-kubeconfig.yaml get pods -n vpn
+
+# Make it permanent on shell
+chmod 600 $HOME/.kube/vpn-admin-kubeconfig.yaml 
+echo 'export KUBECONFIG="$HOME/.kube/vpn-admin-kubeconfig.yaml"'>> ~/.bashrc 
+source ~/.bashrc
+```
